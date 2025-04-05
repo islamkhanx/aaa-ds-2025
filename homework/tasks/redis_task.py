@@ -24,4 +24,5 @@ class UsersByTitleStorage:
         Напишите код для поиска уникальных user_id, имеющих хотя бы одно объявление
         с заданным title.
         """
-        return await self._client.smembers(title)
+        users = await self._client.smembers(title)
+        return [int(user) for user in users]
