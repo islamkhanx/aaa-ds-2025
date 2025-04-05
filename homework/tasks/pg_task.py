@@ -37,7 +37,16 @@ class ItemStorage:
         """
         # In production environment we will use migration tool
         # like https://github.com/pressly/goose
-        # YOUR CODE GOES HERE
+        await self._pool.execute(
+            """
+            CREATE TABLE IF NOT EXISTS items (
+                item_id SERIAL PRIMARY KEY,
+                user_id INT NOT NULL,
+                title TEXT NOT NULL,
+                description TEXT NOT NULL
+            );
+            """
+        )
 
     async def save_items(self, items: list[ItemEntry]) -> None:
         """
@@ -46,7 +55,26 @@ class ItemStorage:
         """
         # Don't use str-formatting, query args should be escaped to avoid
         # sql injections https://habr.com/ru/articles/148151/.
-        # YOUR CODE GOES HERE
+
+        item_ids = [i.item_id for i in items]
+        user_ids = [i.user_id for i in items]
+        titles = [i.title for i in items]
+        descriptions = [i.description for i in items]
+
+        await self._pool.execute(
+            """
+            INSERT INTO items (item_id, user_id, title, description)
+            SELECT x.item_id, x.user_id, x.title, x.description
+            FROM
+                UNNEST($1::int[], $2::int[], $3::text[], $4::text[])
+                    AS x(item_id, user_id, title, description);
+            """,
+            item_ids,
+            user_ids,
+            titles,
+            descriptions,
+        )
+
 
     async def find_similar_items(
         self, user_id: int, title: str, description: str
@@ -54,4 +82,15 @@ class ItemStorage:
         """
         Напишите код для поиска записей, имеющих указанные user_id, title и description.
         """
-        # YOUR CODE GOES HERE
+
+        data = await self._pool.fetch(
+            """
+            SELECT item_id, user_id, title, description
+            FROM items
+            WHERE user_id = $1 AND title = $2 AND description = $3
+            """,
+            user_id,
+            title,
+            description,
+        )
+        return [ItemEntry(**item) for item in data]
